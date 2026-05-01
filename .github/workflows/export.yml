@@ -66,6 +66,32 @@ jobs:
           name: android-apk
           path: build/android
 
+      - name: Verify Android APK
+        run: |
+          echo "📦 Files in Android build:"
+          ls -lh build/android/
+          APK="build/android/$EXPORT_NAME.apk"
+          if [ -f "$APK" ]; then
+            SIZE=$(stat -c%s "$APK")
+            echo "✅ APK exists: $(ls -lh "$APK" | awk '{print $5}')"
+            if [ "$SIZE" -gt 1000000 ]; then
+              echo "✅ APK size > 1MB — looks complete"
+            else
+              echo "⚠️ APK seems small ($SIZE bytes)"
+            fi
+          else
+            echo "❌ APK not found!"
+            exit 1
+          fi
+          # Check it's a valid ZIP/APK
+          if file "$APK" | grep -q "Zip\|Java\|APK"; then
+            echo "✅ APK is valid format"
+          else
+            echo "❌ APK format check failed"
+            file "$APK"
+            exit 1
+          fi
+
   export-web:
     name: Export Web
     runs-on: ubuntu-24.04
@@ -107,6 +133,33 @@ jobs:
         with:
           name: web-export
           path: build/web
+
+      - name: Verify Web Export
+        run: |
+          echo "📦 Files in web export:"
+          ls -lh build/web/
+          echo "---"
+          # Check essential files exist
+          MISSING=""
+          for f in index.html index.wasm index.js index.pck; do
+            if [ -f "build/web/$f" ]; then
+              echo "✅ $f"
+            else
+              echo "❌ $f MISSING"
+              MISSING="$MISSING $f"
+            fi
+          done
+          if [ -n "$MISSING" ]; then
+            echo "❌ Missing files:$MISSING — aborting deploy"
+            exit 1
+          fi
+          # Verify HTML contains necessary tags
+          if grep -q 'Godot\|canvas\|Engine' build/web/index.html; then
+            echo "✅ index.html looks valid (contains Godot/Engine tags)"
+          else
+            echo "⚠️ index.html may be incomplete"
+          fi
+          echo "✅ Web export validation passed"
 
       - name: Deploy via rsync
         run: |
