@@ -289,8 +289,19 @@ jobs:
             TITLE="❌ Godot CI Failed [$BRANCH]"
           fi
 
-          # Build content
-          CONTENT="## Godot CI Report\n**Branch:** \`$BRANCH\`\n**Commit:** $COMMIT\n**Author:** $ACTOR\n\n| Job | Status |\n|-----|--------|\n| 🔬 Test | $TEST |\n| 📱 Android | ${ANDROID:-skipped} |\n| 🌐 Web | ${WEB:-skipped} |\n| 🧪 Staging | ${STAGING:-skipped} |\n| 🚀 Prod | ${PROD:-skipped} |\n\n[🔗 View Run](${URL})"
+          # Build content with real newlines for Server酱
+          {
+            echo "## Godot CI Report"
+            echo ""
+            echo "Branch: $BRANCH  |  Commit: $COMMIT  |  Author: $ACTOR"
+            echo "──────────────────────────────"
+            echo "🔬 Test: $TEST  |  📱 Android: ${ANDROID:-skipped}"
+            echo "🌐 Web: ${WEB:-skipped}  |  🧪 Staging: ${STAGING:-skipped}"
+            echo "🚀 Prod: ${PROD:-skipped}"
+            echo "──────────────────────────────"
+            echo "🔗 ${URL}"
+          } > /tmp/ci_notify.txt
+          CONTENT=$(cat /tmp/ci_notify.txt)
 
           echo "Sending Server酱 notification..."
           curl -s -X POST "https://sctapi.ftqq.com/$SCKEY.send" \
