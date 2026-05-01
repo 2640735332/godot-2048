@@ -83,12 +83,12 @@ jobs:
             echo "❌ APK not found!"
             exit 1
           fi
-          # Check it's a valid ZIP/APK
-          if file "$APK" | grep -q "Zip\|Java\|APK"; then
-            echo "✅ APK is valid format"
+          # Quick ZIP header check (no external tools needed)
+          if head -c 4 "$APK" | od -A n -t x1 | grep -q "50 4b 03 04"; then
+            echo "✅ APK is valid ZIP format (PK\x03\x04 header detected)"
           else
-            echo "❌ APK format check failed"
-            file "$APK"
+            echo "❌ APK ZIP header check failed"
+            head -c 16 "$APK" | od -A n -t x1
             exit 1
           fi
 
