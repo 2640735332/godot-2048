@@ -36,7 +36,8 @@ jobs:
       - name: Export Web
         run: |
           mkdir -p build/web
-          godot --headless --export-release "Web" build/web/index.html
+          xvfb-run -a --server-args="-screen 0 1024x768x24" \
+            godot --editor --headless --export-release "Web" build/web/index.html
 
       - name: Upload Web Artifact
         uses: actions/upload-artifact@v4
@@ -57,7 +58,8 @@ jobs:
       - name: Export Android
         run: |
           mkdir -p build/android
-          godot --export-release "Android" build/android/2048-godot.apk
+          xvfb-run -a --server-args="-screen 0 1024x768x24" \
+            godot --editor --headless --export-release "Android" build/android/2048-godot.apk
 
       - name: Download APK
         uses: actions/upload-artifact@v4
