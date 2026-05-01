@@ -104,14 +104,18 @@ jobs:
           echo "$DEPLOY_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           # Extract host from DEPLOY_HOST (format: user@host)
-          DEPLOY_USER="${DEPLOY_HOST%%@*}"
           DEPLOY_IP="${DEPLOY_HOST#*@}"
           ssh-keyscan -H "$DEPLOY_IP" >> ~/.ssh/known_hosts 2>/dev/null
-          ssh-keyscan -H "localhost" >> ~/.ssh/known_hosts 2>/dev/null
-          # Try scp
-          if scp -r build/web/* "$DEPLOY_HOST:website/games/2048/" 2>&1; then
+          # Install openssh-client (scp) if not present
+          apt-get update -qq 2>/dev/null && apt-get install -y -qq openssh-client 2>/dev/null
+          # Try deployment methods
+          if command -v rsync &>/dev/null; then
+            rsync -avz --delete build/web/ "$DEPLOY_HOST:website/games/2048/"
+            echo "✅ Deployed via rsync"
+          elif command -v scp &>/dev/null; then
+            scp -r build/web/* "$DEPLOY_HOST:website/games/2048/"
             echo "✅ Deployed via scp"
           else
-            echo "⚠️ Deploy failed (non-critical)"
+            echo "⚠️ Neither rsync nor scp available in container (non-critical)"
           fi
-          echo "✅ Deployed to $DEPLOY_HOST"
+          echo "✅ Deploy step complete"
