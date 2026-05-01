@@ -25,6 +25,11 @@ jobs:
       - name: Setup
         run: |
           echo "HOME=$HOME"
+          # Auto-version: use git commit count as version code
+          VERSION_CODE=$(git rev-list --count HEAD)
+          echo "Version code: $VERSION_CODE"
+          # Update export_presets.cfg with version code
+          sed -i "s/version\/code=[0-9]*/version\/code=$VERSION_CODE/" export_presets.cfg
           # Copy config and templates to actual HOME (/github/home)
           mkdir -v -p $HOME/.config/godot
           mkdir -v -p $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable
@@ -85,3 +90,16 @@ jobs:
         with:
           name: web-export
           path: build/web
+
+      - name: Deploy to Server
+        if: github.ref == 'refs/heads/main'
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts 2>/dev/null
+          rsync -avz --delete build/web/ "ubuntu@$DEPLOY_HOST:website/games/2048/"
+          echo "✅ Deployed to $DEPLOY_HOST"
