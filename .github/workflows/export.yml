@@ -25,6 +25,8 @@ jobs:
       - name: Setup
         run: |
           echo "HOME=$HOME"
+          # Mark repo as safe for git (needed for git commands in container)
+          git config --global --add safe.directory /__w/godot-2048/godot-2048
           # Auto-version: use git commit count as version code
           VERSION_CODE=$(git rev-list --count HEAD)
           echo "Version code: $VERSION_CODE"
@@ -102,6 +104,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts 2>/dev/null
           # Install rsync (not in container by default)
-          apt-get update -qq && apt-get install -y -qq rsync
-          rsync -avz --delete build/web/ "ubuntu@$DEPLOY_HOST:website/games/2048/"
+          apt-get update -qq && apt-get install -y -qq rsync 2>/dev/null || which rsync || echo "rsync N/A, fallback to scp"
+          rsync -avz --delete build/web/ "ubuntu@$DEPLOY_HOST:website/games/2048/" 2>/dev/null || \
+          scp -r build/web/* "ubuntu@$DEPLOY_HOST:website/games/2048/"
           echo "✅ Deployed to $DEPLOY_HOST"
