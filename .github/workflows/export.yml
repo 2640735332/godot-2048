@@ -1,7 +1,8 @@
 name: Export Game
+
 on:
   push:
-    branches: [main]
+    branches: [main, dev, staging]
   workflow_dispatch:
 
 env:
@@ -10,10 +11,15 @@ env:
   GODOT_ANDROID_KEYSTORE_RELEASE_PATH: /root/debug.keystore
   GODOT_ANDROID_KEYSTORE_RELEASE_USER: androiddebugkey
   GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: android
+  # Environment label for notifications
+  BRANCH_NAME: ${{ github.ref_name }}
 
 jobs:
-  export-android:
-    name: Test & Export Android
+  ###########################################################################
+  # TESTS — run on all branches
+  ###########################################################################
+  test:
+    name: Tests
     runs-on: ubuntu-24.04
     container:
       image: barichello/godot-ci:4.3
@@ -26,33 +32,58 @@ jobs:
       - name: Setup
         run: |
           echo "HOME=$HOME"
-          # Mark repo as safe for git (needed for git commands in container)
+          echo "Branch: ${BRANCH_NAME}"
           git config --global --add safe.directory /__w/godot-2048/godot-2048
-          # Auto-version: use git commit count as version code
+          # Auto-version
           VERSION_CODE=$(git rev-list --count HEAD)
           echo "Version code: $VERSION_CODE"
-          # Update export_presets.cfg with version code
           sed -i "s/version\/code=[0-9]*/version\/code=$VERSION_CODE/" export_presets.cfg
-          # Copy config and templates to actual HOME (/github/home)
+          # Copy config and templates
           mkdir -v -p $HOME/.config/godot
           mkdir -v -p $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable
           cp -rv /root/.config/godot/* $HOME/.config/godot/
           cp -rv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable/* $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
-          # Generate debug keystore for APK signing
+          # Generate debug keystore
           mkdir -v -p $HOME/.local/share/godot/keystores
           keytool -genkey -v -keystore $HOME/.local/share/godot/keystores/debug.keystore \
             -storepass android -alias androiddebugkey -keypass android \
             -keyalg RSA -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          # Update editor settings keystore path and add release keystore config
           sed -i "s|export/android/debug_keystore = \"/root/debug.keystore\"|export/android/debug_keystore = \"$HOME/.local/share/godot/keystores/debug.keystore\"|" $HOME/.config/godot/editor_settings-4.3.tres
-          # Verify
-          ls -la $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android*
-          echo "Keystore:"
-          ls -la $HOME/.local/share/godot/keystores/debug.keystore
 
       - name: Run Tests
         run: |
           godot --headless -s test/run_tests.gd
+
+  ###########################################################################
+  # ANDROID EXPORT — main + staging only (not dev)
+  ###########################################################################
+  export-android:
+    name: Android Export
+    needs: [test]
+    if: github.ref_name != 'dev'
+    runs-on: ubuntu-24.04
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Setup
+        run: |
+          git config --global --add safe.directory /__w/godot-2048/godot-2048
+          VERSION_CODE=$(git rev-list --count HEAD)
+          sed -i "s/version\/code=[0-9]*/version\/code=$VERSION_CODE/" export_presets.cfg
+          mkdir -v -p $HOME/.config/godot
+          mkdir -v -p $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          cp -rv /root/.config/godot/* $HOME/.config/godot/
+          cp -rv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable/* $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
+          mkdir -v -p $HOME/.local/share/godot/keystores
+          keytool -genkey -v -keystore $HOME/.local/share/godot/keystores/debug.keystore \
+            -storepass android -alias androiddebugkey -keypass android \
+            -keyalg RSA -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          sed -i "s|export/android/debug_keystore = \"/root/debug.keystore\"|export/android/debug_keystore = \"$HOME/.local/share/godot/keystores/debug.keystore\"|" $HOME/.config/godot/editor_settings-4.3.tres
 
       - name: Android Build
         run: |
@@ -63,7 +94,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk
+          name: android-apk-${{ github.ref_name }}
           path: build/android
 
       - name: Verify Android APK
@@ -74,26 +105,23 @@ jobs:
           if [ -f "$APK" ]; then
             SIZE=$(stat -c%s "$APK")
             echo "✅ APK exists: $(ls -lh "$APK" | awk '{print $5}')"
-            if [ "$SIZE" -gt 1000000 ]; then
-              echo "✅ APK size > 1MB — looks complete"
-            else
-              echo "⚠️ APK seems small ($SIZE bytes)"
-            fi
+            [ "$SIZE" -gt 1000000 ] && echo "✅ APK size > 1MB" || echo "⚠️ Small APK ($SIZE bytes)"
           else
-            echo "❌ APK not found!"
-            exit 1
+            echo "❌ APK not found!"; exit 1
           fi
-          # Quick ZIP header check (no external tools needed)
           if head -c 4 "$APK" | od -A n -t x1 | grep -q "50 4b 03 04"; then
-            echo "✅ APK is valid ZIP format (PK\x03\x04 header detected)"
+            echo "✅ Valid ZIP format"
           else
-            echo "❌ APK ZIP header check failed"
-            head -c 16 "$APK" | od -A n -t x1
-            exit 1
+            echo "❌ ZIP header check failed"; head -c 16 "$APK" | od -A n -t x1; exit 1
           fi
 
+  ###########################################################################
+  # WEB EXPORT — main + staging only (not dev)
+  ###########################################################################
   export-web:
-    name: Export Web
+    name: Web Export
+    needs: [test]
+    if: github.ref_name != 'dev'
     runs-on: ubuntu-24.04
     container:
       image: barichello/godot-ci:4.3
@@ -104,7 +132,6 @@ jobs:
 
       - name: Setup
         run: |
-          # Copy web export templates
           mkdir -v -p $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable
           cp -rv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable/web* $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
 
@@ -117,49 +144,70 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: web-export
+          name: web-export-${{ github.ref_name }}
           path: build/web
 
-  deploy:
-    name: Deploy to Server
-    runs-on: ubuntu-24.04
+  ###########################################################################
+  # DEPLOY — different targets per environment
+  ###########################################################################
+  deploy-staging:
+    name: Deploy to Staging
     needs: [export-web]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref_name == 'staging'
+    runs-on: ubuntu-24.04
     env:
       DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: web-export
+          name: web-export-staging
           path: build/web
 
       - name: Verify Web Export
         run: |
-          echo "📦 Files in web export:"
+          echo "📦 Staging build files:"
           ls -lh build/web/
-          echo "---"
-          # Check essential files exist
+          for f in index.html index.wasm index.js index.pck; do
+            if [ -f "build/web/$f" ]; then echo "✅ $f"; else echo "❌ $f MISSING"; exit 1; fi
+          done
+
+      - name: Deploy to Staging Directory
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          DEPLOY_IP="${DEPLOY_HOST#*@}"
+          ssh-keyscan -H "$DEPLOY_IP" >> ~/.ssh/known_hosts 2>/dev/null
+          rsync -avz --delete build/web/ "$DEPLOY_HOST:website/staging/$EXPORT_NAME/"
+          echo "✅ Deployed to staging at $DEPLOY_HOST:website/staging/$EXPORT_NAME/"
+
+  deploy-production:
+    name: Deploy to Production
+    needs: [export-web]
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-24.04
+    env:
+      DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-export-main
+          path: build/web
+
+      - name: Verify Web Export
+        run: |
+          echo "📦 Production build files:"
+          ls -lh build/web/
           MISSING=""
           for f in index.html index.wasm index.js index.pck; do
-            if [ -f "build/web/$f" ]; then
-              echo "✅ $f"
-            else
-              echo "❌ $f MISSING"
-              MISSING="$MISSING $f"
-            fi
+            if [ -f "build/web/$f" ]; then echo "✅ $f"
+            else echo "❌ $f MISSING"; MISSING="$MISSING $f"; fi
           done
-          if [ -n "$MISSING" ]; then
-            echo "❌ Missing files:$MISSING — aborting deploy"
-            exit 1
-          fi
-          # Verify HTML contains necessary tags
-          if grep -q 'Godot\|canvas\|Engine' build/web/index.html; then
-            echo "✅ index.html looks valid (contains Godot/Engine tags)"
-          else
-            echo "⚠️ index.html may be incomplete"
-          fi
-          echo "✅ Web export validation passed"
+          [ -n "$MISSING" ] && echo "❌ Missing:$MISSING" && exit 1
+          grep -q 'Godot\|canvas\|Engine' build/web/index.html && echo "✅ index.html valid"
 
       - name: Deploy via rsync
         run: |
@@ -167,9 +215,99 @@ jobs:
           mkdir -p ~/.ssh
           echo "$DEPLOY_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          # Extract IP from DEPLOY_HOST (format: user@host)
           DEPLOY_IP="${DEPLOY_HOST#*@}"
           ssh-keyscan -H "$DEPLOY_IP" >> ~/.ssh/known_hosts 2>/dev/null
-          # Deploy with rsync (native ubuntu-24.04 has rsync)
-          rsync -avz --delete build/web/ "$DEPLOY_HOST:website/games/2048/"
-          echo "✅ Deployed successfully"
+          rsync -avz --delete build/web/ "$DEPLOY_HOST:website/games/$EXPORT_NAME/"
+          echo "✅ Deployed to production at $DEPLOY_HOST:website/games/$EXPORT_NAME/"
+
+  ###########################################################################
+  # NOTIFICATION — sent once for the entire workflow
+  ###########################################################################
+  notify:
+    name: Notification
+    needs: [test, export-android, export-web, deploy-staging, deploy-production]
+    if: always()  # run even if previous jobs failed
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Collect job statuses
+        id: status
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          COMMIT="${{ github.sha }}"
+          COMMIT_SHORT="${COMMIT:0:7}"
+          COMMIT_MSG="${{ github.event.head_commit.message || 'manual trigger' }}"
+          ACTOR="${{ github.actor }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          # Determine overall status
+          echo "needs: ${{ toJson(needs) }}"
+
+          # Map each job's conclusion
+          TEST="${{ needs.test.result }}"
+          ANDROID="${{ needs.export-android.result }}"
+          WEB="${{ needs.export-web.result }}"
+          STAGING="${{ needs.deploy-staging.result }}"
+          PROD="${{ needs.deploy-production.result }}"
+
+          echo "test=${TEST}" >> $GITHUB_OUTPUT
+          echo "android=${ANDROID}" >> $GITHUB_OUTPUT
+          echo "web=${WEB}" >> $GITHUB_OUTPUT
+          echo "staging=${STAGING}" >> $GITHUB_OUTPUT
+          echo "prod=${PROD}" >> $GITHUB_OUTPUT
+          echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
+          echo "commit=${COMMIT_SHORT}" >> $GITHUB_OUTPUT
+          echo "msg=${COMMIT_MSG}" >> $GITHUB_OUTPUT
+          echo "actor=${ACTOR}" >> $GITHUB_OUTPUT
+          echo "url=${RUN_URL}" >> $GITHUB_OUTPUT
+
+      - name: Send WeChat notification
+        env:
+          WECHAT_WEBHOOK: ${{ secrets.WECHAT_WEBHOOK }}
+        run: |
+          # If no webhook configured, skip notification
+          if [ -z "$WECHAT_WEBHOOK" ]; then
+            echo "⚠️ WECHAT_WEBHOOK not set — skipping notification"
+            echo "   Set it as a GitHub Secret to receive CI notifications on WeChat"
+            exit 0
+          fi
+
+          BRANCH="${{ steps.status.outputs.branch }}"
+          COMMIT="${{ steps.status.outputs.commit }}"
+          MSG="${{ steps.status.outputs.msg }}"
+          ACTOR="${{ steps.status.outputs.actor }}"
+          URL="${{ steps.status.outputs.url }}"
+          TEST="${{ steps.status.outputs.test }}"
+          ANDROID="${{ steps.status.outputs.android }}"
+          WEB="${{ steps.status.outputs.web }}"
+          STAGING="${{ steps.status.outputs.staging }}"
+          PROD="${{ steps.status.outputs.prod }}"
+
+          # Color: red for failure, green for success
+          if [ "$TEST" = "success" ] && [ "$ANDROID" != "failure" ] && [ "$WEB" != "failure" ] && [ "$STAGING" != "failure" ] && [ "$PROD" != "failure" ]; then
+            EMOJI="✅"
+            COLOR="00C853"
+          else
+            EMOJI="❌"
+            COLOR="FF1744"
+          fi
+
+          # Build job status summary
+          STATUS_LINE="${EMOJI} [${BRANCH}] ${MSG:0:60}"
+          BODY="🔬 Test: ${TEST}\n📱 Android: ${ANDROID:-skipped}\n🌐 Web: ${WEB:-skipped}\n🧪 Staging: ${STAGING:-skipped}\n🚀 Prod: ${PROD:-skipped}"
+
+          # Build markdown content for WeChat robot webhook
+          PAYLOAD=$(cat <<EOF
+          {
+            "msgtype": "markdown",
+            "markdown": {
+              "content": "## ${EMOJI} Godot CI Report\n> **Branch:** \`${BRANCH}\`\n> **Commit:** [${COMMIT}](${URL})\n> **Author:** ${ACTOR}\n>\n> ${BODY}\n>\n> [🔗 View Run](${URL})"
+            }
+          }
+          EOF
+          )
+
+          echo "Sending notification..."
+          curl -s -X POST "$WECHAT_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" 2>&1 || echo "⚠️ Webhook send failed (non-critical)"
+          echo ""
