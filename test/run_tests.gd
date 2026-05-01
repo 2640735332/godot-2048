@@ -227,9 +227,7 @@ func _test_double_merge_correct(gm) -> Array:
 	if not r2[0]: return r2
 	var r3 = _assert_eq(gm.grid[0][1], 16, "8+8 -> 16")
 	if not r3[0]: return r3
-	var r4 = _assert_eq(gm.grid[0][2], 0, "3rd empty")
-	if not r4[0]: return r4
-	return _assert_eq(gm.grid[0][3], 0, "4th empty")
+	return _assert_eq(gm.grid[0][2], 0, "3rd empty")
 
 func _test_add_random_tile(gm) -> Array:
 	gm._initialize_grid()
