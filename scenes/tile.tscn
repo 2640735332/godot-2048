@@ -1,0 +1,46 @@
+[gd_scene load_steps=5 format=3 uid="uid://d1tile"]
+
+[ext_resource type="Script" path="res://scripts/tile.gd" id="1_tile_script"]
+[ext_resource type="Theme" path="res://assets/tile_theme.tres" id="2_tile_theme"]
+
+[sub_resource type="StyleBoxFlat" id="1"]
+content_margin_left = 4
+content_margin_top = 4
+content_margin_right = 4
+content_margin_bottom = 4
+bg_color = Color(0.776, 0.690, 0.600, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+corner_detail = 8
+shadow_size = 2
+shadow_offset = Vector2(0, 1)
+shadow_color = Color(0, 0, 0, 0.2)
+
+[sub_resource type="LabelSettings" id="2"]
+font_size = 24
+font_color = Color(0.365, 0.302, 0.259, 1)
+bold = true
+outline_color = Color(0, 0, 0, 0)
+outline_size = 0
+
+[node name="Tile" type="Panel"]
+custom_minimum_size = Vector2(56, 56)
+size = Vector2(56, 56)
+theme_override_styles/panel = SubResource("1")
+script = ExtResource("1_tile_script")
+
+[node name="Label" type="Label" parent="."]
+layout_mode = 2
+anchors_preset = 15
+anchor_right = 1
+anchor_bottom = 1
+grow_horizontal = 2
+grow_vertical = 2
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(0.365, 0.302, 0.259, 1)
+label_settings = SubResource("2")
+text = ""

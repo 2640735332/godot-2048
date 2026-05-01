@@ -1,0 +1,66 @@
+name: Export Game
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: 4.3
+
+jobs:
+  test:
+    name: GUT Tests
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Tests
+        run: |
+          godot --headless -s test/run_tests.gd
+
+  export-web:
+    name: Export Web
+    needs: test
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Export Web
+        run: |
+          mkdir -p build/web
+          godot --headless --export-release "Web" build/web/index.html
+
+      - name: Upload Web Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: build/web
+
+  export-android:
+    name: Export Android
+    needs: test
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Export Android
+        run: |
+          mkdir -p build/android
+          godot --export-release "Android" build/android/2048-godot.apk
+
+      - name: Download APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: build/android
