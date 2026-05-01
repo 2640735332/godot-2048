@@ -18,20 +18,13 @@ jobs:
         run: |
           godot --headless -s test/run_tests.gd
 
-      - name: Export Web
-        run: |
-          mkdir -p build/web
-          xvfb-run -a godot --editor --export-release "Web" build/web/index.html --quit
-
       - name: Export Android
         run: |
           mkdir -p build/android
-          xvfb-run -a godot --editor --export-release "Android" build/android/2048-godot.apk --quit
+          godot --headless --export-release "Android" build/android/2048-godot.apk --quit
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: builds
-          path: |
-            build/web
-            build/android
+          name: android-apk
+          path: build/android
