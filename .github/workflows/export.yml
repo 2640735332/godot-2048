@@ -14,8 +14,6 @@ jobs:
     runs-on: ubuntu-24.04
     container:
       image: barichello/godot-ci:4.3
-      env:
-        HOME: /root
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,7 +22,13 @@ jobs:
       - name: Setup
         run: |
           echo "HOME=$HOME"
-          ls -la /root/.local/share/godot/export_templates/ 2>/dev/null
+          # Copy config and templates to actual HOME (/github/home)
+          mkdir -v -p $HOME/.config/godot
+          mkdir -v -p $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          cp -rv /root/.config/godot/* $HOME/.config/godot/
+          cp -rv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable/* $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
+          # Verify
+          ls -la $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android*
 
       - name: Run Tests
         run: |
