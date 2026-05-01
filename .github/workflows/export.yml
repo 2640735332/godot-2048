@@ -5,17 +5,27 @@ on:
   workflow_dispatch:
 
 env:
-  GODOT_VERSION: 4.3
+  GODOT_VERSION: 4.6.2
 
 jobs:
   test:
     name: Tests
     runs-on: ubuntu-latest
-    container:
-      image: barichello/godot-ci:4.3
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Godot
+        run: |
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
+          mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 /usr/local/bin/godot
+          chmod +x /usr/local/bin/godot
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          unzip -q Godot_v${GODOT_VERSION}-stable_export_templates.tpz -d /tmp/templates
+          mv /tmp/templates/templates/* ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
+          rm -f Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip Godot_v${GODOT_VERSION}-stable_export_templates.tpz
 
       - name: Run Tests
         run: |
@@ -25,27 +35,34 @@ jobs:
     name: Export All
     needs: test
     runs-on: ubuntu-latest
-    container:
-      image: barichello/godot-ci:4.3
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install xvfb
+      - name: Setup Godot
         run: |
-          apt-get update -qq && apt-get install -y -qq xvfb
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
+          sudo mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          unzip -q Godot_v${GODOT_VERSION}-stable_export_templates.tpz -d /tmp/templates
+          mv /tmp/templates/templates/* ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
+          rm -f Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip Godot_v${GODOT_VERSION}-stable_export_templates.tpz
 
       - name: Export Web
         run: |
           mkdir -p build/web
-          xvfb-run -a godot --editor --headless --export-release "Web" build/web/index.html --quit
+          xvfb-run -a godot --editor --export-release "Web" build/web/index.html --quit
 
       - name: Export Android
         run: |
           mkdir -p build/android
-          xvfb-run -a godot --editor --headless --export-release "Android" build/android/2048-godot.apk --quit
+          xvfb-run -a godot --editor --export-release "Android" build/android/2048-godot.apk --quit
 
-      - name: Upload All Artifacts
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: builds
