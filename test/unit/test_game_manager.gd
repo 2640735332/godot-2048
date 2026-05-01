@@ -1,7 +1,7 @@
 # Unit tests for GameManager
 # Run with GUT (Godot Unit Test) addon or: godot4 --headless -s test/run_tests.gd
 
-extends GutTest
+extends Node
 
 func before_each():
 	var script = load("res://scripts/game_manager.gd")
