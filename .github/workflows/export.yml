@@ -57,3 +57,31 @@ jobs:
         with:
           name: android-apk
           path: build/android
+
+  export-web:
+    name: Export Web
+    runs-on: ubuntu-24.04
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup
+        run: |
+          # Copy web export templates
+          mkdir -v -p $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          cp -rv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable/web* $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
+
+      - name: Web Build
+        run: |
+          mkdir -v -p build/web
+          EXPORT_DIR="$(readlink -f build)"
+          godot --headless --export-release "Web" "$EXPORT_DIR/web/index.html"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-export
+          path: build/web
