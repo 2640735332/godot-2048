@@ -101,5 +101,7 @@ jobs:
           echo "$DEPLOY_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H $DEPLOY_HOST >> ~/.ssh/known_hosts 2>/dev/null
+          # Install rsync (not in container by default)
+          apt-get update -qq && apt-get install -y -qq rsync
           rsync -avz --delete build/web/ "ubuntu@$DEPLOY_HOST:website/games/2048/"
           echo "✅ Deployed to $DEPLOY_HOST"
