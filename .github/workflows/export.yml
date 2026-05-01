@@ -2,8 +2,6 @@ name: Export Game
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 env:
@@ -11,7 +9,7 @@ env:
 
 jobs:
   test:
-    name: GUT Tests
+    name: Tests
     runs-on: ubuntu-latest
     container:
       image: barichello/godot-ci:4.3
@@ -23,8 +21,8 @@ jobs:
         run: |
           godot --headless -s test/run_tests.gd
 
-  export-web:
-    name: Export Web
+  export:
+    name: Export All
     needs: test
     runs-on: ubuntu-latest
     container:
@@ -32,37 +30,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install xvfb
+        run: |
+          apt-get update -qq && apt-get install -y -qq xvfb
 
       - name: Export Web
         run: |
           mkdir -p build/web
-          xvfb-run -a --server-args="-screen 0 1024x768x24" \
-            godot --editor --headless --export-release "Web" build/web/index.html
-
-      - name: Upload Web Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: web
-          path: build/web
-
-  export-android:
-    name: Export Android
-    needs: test
-    runs-on: ubuntu-latest
-    container:
-      image: barichello/godot-ci:4.3
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+          xvfb-run -a godot --editor --headless --export-release "Web" build/web/index.html --quit
 
       - name: Export Android
         run: |
           mkdir -p build/android
-          xvfb-run -a --server-args="-screen 0 1024x768x24" \
-            godot --editor --headless --export-release "Android" build/android/2048-godot.apk
+          xvfb-run -a godot --editor --headless --export-release "Android" build/android/2048-godot.apk --quit
 
-      - name: Download APK
+      - name: Upload All Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: android
-          path: build/android
+          name: builds
+          path: |
+            build/web
+            build/android
