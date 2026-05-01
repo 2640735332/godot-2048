@@ -260,14 +260,14 @@ jobs:
           echo "actor=${ACTOR}" >> $GITHUB_OUTPUT
           echo "url=${RUN_URL}" >> $GITHUB_OUTPUT
 
-      - name: Send WeChat notification
+      - name: Send Server酱 notification
         env:
-          WECHAT_WEBHOOK: ${{ secrets.WECHAT_WEBHOOK }}
+          SCKEY: ${{ secrets.SCKEY }}
         run: |
-          # If no webhook configured, skip notification
-          if [ -z "$WECHAT_WEBHOOK" ]; then
-            echo "⚠️ WECHAT_WEBHOOK not set — skipping notification"
-            echo "   Set it as a GitHub Secret to receive CI notifications on WeChat"
+          # If no sendkey configured, skip notification
+          if [ -z "$SCKEY" ]; then
+            echo "⚠️ SCKEY not set — skipping notification"
+            echo "   Set it as a GitHub Secret (SCKEY) to receive CI notifications on WeChat"
             exit 0
           fi
 
@@ -282,32 +282,19 @@ jobs:
           STAGING="${{ steps.status.outputs.staging }}"
           PROD="${{ steps.status.outputs.prod }}"
 
-          # Color: red for failure, green for success
+          # Determine overall status
           if [ "$TEST" = "success" ] && [ "$ANDROID" != "failure" ] && [ "$WEB" != "failure" ] && [ "$STAGING" != "failure" ] && [ "$PROD" != "failure" ]; then
-            EMOJI="✅"
-            COLOR="00C853"
+            TITLE="✅ Godot CI Passed [$BRANCH]"
           else
-            EMOJI="❌"
-            COLOR="FF1744"
+            TITLE="❌ Godot CI Failed [$BRANCH]"
           fi
 
-          # Build job status summary
-          STATUS_LINE="${EMOJI} [${BRANCH}] ${MSG:0:60}"
-          BODY="🔬 Test: ${TEST}\n📱 Android: ${ANDROID:-skipped}\n🌐 Web: ${WEB:-skipped}\n🧪 Staging: ${STAGING:-skipped}\n🚀 Prod: ${PROD:-skipped}"
+          # Build content
+          CONTENT="## Godot CI Report\n**Branch:** \`$BRANCH\`\n**Commit:** $COMMIT\n**Author:** $ACTOR\n\n| Job | Status |\n|-----|--------|\n| 🔬 Test | $TEST |\n| 📱 Android | ${ANDROID:-skipped} |\n| 🌐 Web | ${WEB:-skipped} |\n| 🧪 Staging | ${STAGING:-skipped} |\n| 🚀 Prod | ${PROD:-skipped} |\n\n[🔗 View Run](${URL})"
 
-          # Build markdown content for WeChat robot webhook
-          PAYLOAD=$(cat <<EOF
-          {
-            "msgtype": "markdown",
-            "markdown": {
-              "content": "## ${EMOJI} Godot CI Report\n> **Branch:** \`${BRANCH}\`\n> **Commit:** [${COMMIT}](${URL})\n> **Author:** ${ACTOR}\n>\n> ${BODY}\n>\n> [🔗 View Run](${URL})"
-            }
-          }
-          EOF
-          )
-
-          echo "Sending notification..."
-          curl -s -X POST "$WECHAT_WEBHOOK" \
+          echo "Sending Server酱 notification..."
+          curl -s -X POST "https://sctapi.ftqq.com/$SCKEY.send" \
             -H "Content-Type: application/json" \
-            -d "$PAYLOAD" 2>&1 || echo "⚠️ Webhook send failed (non-critical)"
+            -d "$(jq -n --arg title "$TITLE" --arg content "$CONTENT" '{title: $title, content: $content}')" \
+            2>&1 || echo "⚠️ Server酱 send failed (non-critical)"
           echo ""
