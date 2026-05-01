@@ -7,6 +7,9 @@ on:
 env:
   GODOT_VERSION: 4.3
   EXPORT_NAME: 2048-godot
+  GODOT_ANDROID_KEYSTORE_RELEASE_PATH: /root/debug.keystore
+  GODOT_ANDROID_KEYSTORE_RELEASE_USER: androiddebugkey
+  GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: android
 
 jobs:
   export-android:
@@ -27,8 +30,17 @@ jobs:
           mkdir -v -p $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable
           cp -rv /root/.config/godot/* $HOME/.config/godot/
           cp -rv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable/* $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
+          # Generate debug keystore for APK signing
+          mkdir -v -p $HOME/.local/share/godot/keystores
+          keytool -genkey -v -keystore $HOME/.local/share/godot/keystores/debug.keystore \
+            -storepass android -alias androiddebugkey -keypass android \
+            -keyalg RSA -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          # Update editor settings keystore path and add release keystore config
+          sed -i "s|export/android/debug_keystore = \"/root/debug.keystore\"|export/android/debug_keystore = \"$HOME/.local/share/godot/keystores/debug.keystore\"|" $HOME/.config/godot/editor_settings-4.3.tres
           # Verify
           ls -la $HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android*
+          echo "Keystore:"
+          ls -la $HOME/.local/share/godot/keystores/debug.keystore
 
       - name: Run Tests
         run: |
