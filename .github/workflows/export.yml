@@ -5,8 +5,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-export:
-    name: Test & Export
+  export-android:
+    name: Test & Export Android
     runs-on: ubuntu-latest
     container:
       image: barichello/godot-ci:4.3
@@ -18,10 +18,14 @@ jobs:
         run: |
           godot --headless -s test/run_tests.gd
 
+      - name: Install xvfb
+        run: |
+          apt-get update -qq && apt-get install -y -qq xvfb
+
       - name: Export Android
         run: |
           mkdir -p build/android
-          godot --headless --export-release "Android" build/android/2048-godot.apk --quit
+          xvfb-run -a godot --editor --export-release "Android" build/android/2048-godot.apk --quit
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
