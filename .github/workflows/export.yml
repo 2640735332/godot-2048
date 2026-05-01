@@ -25,7 +25,7 @@ jobs:
       - name: Export Android
         run: |
           mkdir -p build/android
-          xvfb-run -a godot --editor --export-release "Android" build/android/2048-godot.apk --quit
+          xvfb-run -a godot --editor --rendering-driver opengl3 --export-release "Android" build/android/2048-godot.apk --quit
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
