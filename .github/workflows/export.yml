@@ -1,181 +1,56 @@
-name: CI Pipeline
+name: Export Game
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+env:
+  GODOT_VERSION: 4.3
+  EXPORT_NAME: 2048-godot
+  PROJECT_PATH: .
+
 jobs:
   test:
     name: Godot Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: barichello/godot-ci:4.3
     steps:
       - uses: actions/checkout@v4
+      - name: Setup
+        run: |
+          mkdir -v -p ~/.local/share/godot/export_templates/
+          mkdir -v -p ~/.config/
+          mv /root/.config/godot ~/.config/godot || true
+          mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable || true
       - name: Run Tests
         run: |
           godot --headless -s test/run_tests.gd
 
-  build-apk:
-    name: Build Android APK
-    runs-on: ubuntu-latest
+  export-android:
+    name: Android Export
+    needs: test
+    runs-on: ubuntu-24.04
+    container:
+      image: barichello/godot-ci:4.3
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Create Android Project
+          lfs: true
+      - name: Setup
         run: |
-          # Create Android WebView project from scratch
-          mkdir -p android/app/src/main/assets
-          mkdir -p android/app/src/main/java/com/webview2048
-          mkdir -p android/app/src/main/res/values
-          mkdir -p android/app/src/main/res/drawable
-          
-          # Copy the HTML game
-          cp web/index.html android/app/src/main/assets/index.html
-          
-          # Create build.gradle files
-          cat > android/settings.gradle << 'EOF'
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          rootProject.name = 'Game2048'
-          include ':app'
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          EOF
-          
-          cat > android/build.gradle << 'EOF'
-          plugins {
-              id 'com.android.application' version '8.1.0' apply false
-          }
-          EOF
-          
-          cat > android/app/build.gradle << 'EOF'
-          plugins {
-              id 'com.android.application'
-          }
-          android {
-              namespace 'com.webview2048'
-              compileSdk 34
-              defaultConfig {
-                  applicationId 'com.webview2048'
-                  minSdk 21
-                  targetSdk 34
-                  versionCode 1
-                  versionName '1.0'
-              }
-              buildTypes {
-                  debug {
-                      debuggable true
-                  }
-              }
-          }
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'androidx.webkit:webkit:1.8.0'
-          }
-          EOF
-          
-          # Create AndroidManifest.xml
-          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET" />
-              <application
-                  android:allowBackup="true"
-                  android:icon="@mipmap/ic_launcher"
-                  android:label="2048"
-                  android:roundIcon="@mipmap/ic_launcher_round"
-                  android:supportsRtl="true"
-                  android:theme="@style/Theme.Game2048">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true"
-                      android:screenOrientation="portrait"
-                      android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-          
-          # Create MainActivity
-          cat > android/app/src/main/java/com/webview2048/MainActivity.java << 'JAVA'
-          package com.webview2048;
-          import android.os.Bundle;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-          import android.webkit.WebSettings;
-          import androidx.appcompat.app.AppCompatActivity;
-          public class MainActivity extends AppCompatActivity {
-              private WebView webView;
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  webView = new WebView(this);
-                  setContentView(webView);
-                  WebSettings settings = webView.getSettings();
-                  settings.setJavaScriptEnabled(true);
-                  settings.setDomStorageEnabled(true);
-                  settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
-                  settings.setAllowFileAccess(true);
-                  webView.setWebViewClient(new WebViewClient());
-                  webView.loadUrl("file:///android_asset/index.html");
-              }
-              @Override
-              public void onBackPressed() {
-                  if (webView.canGoBack()) webView.goBack();
-                  else super.onBackPressed();
-              }
-          }
-          JAVA
-          
-          # Create themes
-          cat > android/app/src/main/res/values/themes.xml << 'XML'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <style name="Theme.Game2048" parent="Theme.AppCompat.DayNight.NoActionBar">
-                  <item name="android:statusBarColor">#1a1a2e</item>
-                  <item name="android:navigationBarColor">#1a1a2e</item>
-              </style>
-          </resources>
-          XML
-          
-          cat > android/app/src/main/res/values/strings.xml << 'XML'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <string name="app_name">2048</string>
-          </resources>
-          XML
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Build APK
+          mkdir -v -p ~/.local/share/godot/export_templates/
+          mkdir -v -p ~/.config/
+          mv /root/.config/godot ~/.config/godot
+          mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+      - name: Android Build
         run: |
-          cd android
-          gradle assembleDebug --no-daemon
-
-      - name: Upload APK
+          mkdir -v -p build/android
+          EXPORT_DIR="$(readlink -f build)"
+          cd $PROJECT_PATH
+          godot --headless --verbose --export-release "Android" "$EXPORT_DIR/android/$EXPORT_NAME.apk"
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: godot-2048-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: android-apk
+          path: build/android
